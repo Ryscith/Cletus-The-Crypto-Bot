@@ -1,4 +1,4 @@
-import my_config
+import config
 import ccxt
 import pandas as pd
 pd.set_option('max_rows', 5)
@@ -11,8 +11,8 @@ import schedule
 import time
 
 exchange = ccxt.binanceus({
-   "apiKey": my_config.BINANCE_API_KEY,
-   "secret": my_config.BINANCE_SECRET_KEY
+   "apiKey": config.BINANCE_API_KEY,
+   "secret": config.BINANCE_SECRET_KEY
 })
 
 def long_term_ema(df, long_period = 21, smoothing = 2):
