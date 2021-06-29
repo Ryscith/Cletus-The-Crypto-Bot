@@ -7,8 +7,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 from datetime import datetime, timedelta
-import schedule
-import time
+import schedule, time, csv
 
 exchange = ccxt.binanceus({
    "apiKey": config.BINANCE_API_KEY,
@@ -61,7 +60,7 @@ def ema_crossover(df, coin_name, short_period = 10, long_period = 21, smoothing 
       if (df['short_term_ema'][current] == None) or (df['long_term_ema'][current] == None):
          df['in_uptrend'][current] = None
 
-      elif (df['short_term_ema'][current] + 0.001) > (df['long_term_ema'][current]):
+      elif (df['short_term_ema'][current]) > (df['long_term_ema'][current]):
          df['in_uptrend'][current] = True
          if not test_in_position:
             test_buy_price = df['close'][current]
@@ -69,6 +68,9 @@ def ema_crossover(df, coin_name, short_period = 10, long_period = 21, smoothing 
             test_running_balance = test_running_balance - (test_buy_amt * test_buy_price)
             test_in_position = True
             print(f"Bought {test_buy_amt} {coin_name} at {test_buy_price} on {df['timestamp'][current]}")
+            with open('record.csv', 'a', newline='') as csvfile:
+               spamwriter = csv.writer(csvfile, delimiter='|')
+               spamwriter.writerow(['buy', test_buy_amt, test_buy_price, df['timestamp'][current]])
 
       else:
          df['in_uptrend'][current] = False
@@ -77,6 +79,9 @@ def ema_crossover(df, coin_name, short_period = 10, long_period = 21, smoothing 
             test_running_balance = test_running_balance + (test_buy_amt * test_sell_price)
             test_in_position = False
             print(f"Sold {test_buy_amt} {coin_name} at {test_sell_price} on {df['timestamp'][current]} at a difference in price of {test_sell_price - test_buy_price}\n")
+            with open('record.csv', 'a', newline='') as csvfile:
+               spamwriter = csv.writer(csvfile, delimiter='|')
+               spamwriter.writerow(['sell', test_buy_amt, test_sell_price, df['timestamp'][current], [((test_sell_price / test_buy_price) * 100) - 100]])
             if test_buy_price < test_sell_price:
                test_wins = test_wins + 1
             else:

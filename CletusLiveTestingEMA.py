@@ -9,6 +9,7 @@ warnings.filterwarnings('ignore')
 from datetime import datetime, timedelta
 import schedule
 from time import time, sleep
+import csv
 
 exchange = ccxt.binanceus({
    "apiKey": config.BINANCE_API_KEY,
@@ -69,6 +70,9 @@ def buy_sell(df, test_values, coin_name):
       test_values['buy_amt'] = (test_values['running_balance'] * 0.8) / test_values['buy_price']
       test_values['running_balance'] = test_values['running_balance'] - (test_values['buy_amt'] * test_values['buy_price'])
       print(f"I'm buyin' {test_values['buy_amt']} {coin_name} at {test_values['buy_price']} on {df['timestamp'][last_row_index]}")
+      with open('record.csv', 'a', newline='') as csvfile:
+         spamwriter = csv.writer(csvfile, delimiter='|')
+         spamwriter.writerow(['buy', test_values['buy_amt'], test_values['buy_price'], df['timestamp'][last_row_index]])
 
    if df['in_uptrend'][previous_row_index] and not df['in_uptrend'][last_row_index] and test_values['in_position']:
       test_values['in_position'] = False
@@ -79,6 +83,9 @@ def buy_sell(df, test_values, coin_name):
       else:
          test_values['losses'] = test_values['losses'] + 1
       print(f"I'm sellin' {test_values['buy_amt']} {coin_name} at {test_values['sell_price']} on {df['timestamp'][last_row_index]}")
+      with open('record.csv', 'a', newline='') as csvfile:
+               spamwriter = csv.writer(csvfile, delimiter='|')
+               spamwriter.writerow(['sell', test_values['buy_amt'], test_values['sell_price'], df['timestamp'][last_row_index], [((test_values['sell_price'] / test_values['buy_price']) * 100) - 100]])
 
 test_values = {
    'original_balance': 10000,
