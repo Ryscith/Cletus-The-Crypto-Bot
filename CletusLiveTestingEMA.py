@@ -70,9 +70,15 @@ def buy_sell(df, test_values, coin_name):
       test_values['buy_amt'] = (test_values['running_balance'] * 0.8) / test_values['buy_price']
       test_values['running_balance'] = test_values['running_balance'] - (test_values['buy_amt'] * test_values['buy_price'])
       print(f"I'm buyin' {test_values['buy_amt']} {coin_name} at {test_values['buy_price']} on {df['timestamp'][last_row_index]}")
+
+      # Assign variables to use for the writer function
+      buy_amt = test_values['buy_amt']
+      buy_price = test_values['buy_price']
+      timestamp = df['timestamp'][last_row_index]
+
       with open('LiveTestingRecord.csv', 'a', newline='') as csvfile:
          writer = csv.writer(csvfile, delimiter='|')
-         writer.writerow(['buy', test_values['buy_amt'], test_values['buy_price'], df['timestamp'][last_row_index]])
+         writer.writerow(['buy', buy_amt, buy_price, timestamp])
 
    if df['in_uptrend'][previous_row_index] and not df['in_uptrend'][last_row_index] and test_values['in_position']:
       test_values['in_position'] = False
@@ -84,7 +90,7 @@ def buy_sell(df, test_values, coin_name):
          test_values['losses'] = test_values['losses'] + 1
       print(f"I'm sellin' {test_values['buy_amt']} {coin_name} at {test_values['sell_price']} on {df['timestamp'][last_row_index]}")
       with open('LiveTestingRecord.csv', 'a', newline='') as csvfile:
-         writer = csv.writer(csvfile, delimiter='|')
+         writer = csv.DictWriter(csvfile, delimiter='|')
          writer.writerow(['sell', test_values['buy_amt'], test_values['sell_price'], df['timestamp'][last_row_index], [((test_values['sell_price'] / test_values['buy_price']) * 100) - 100]])
 
 test_values = {
