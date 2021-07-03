@@ -111,7 +111,7 @@ def buy_sell(df):
       print("I'm sellin'")
 
 coin_name = 'DOGE/USD'
-bars = exchange.fetch_ohlcv(coin_name, timeframe = '15m', limit = 1600)
+bars = exchange.fetch_ohlcv(coin_name, timeframe = '1m', limit = 1000)
 
 # Timedelta object to translate to EST time zone from UTC
 est_translate = timedelta(hours=4)
@@ -119,4 +119,4 @@ est_translate = timedelta(hours=4)
 # Initializing the dataframe
 df = pd.DataFrame(bars[:-1], columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
 df['timestamp'] = pd.to_datetime(df['timestamp'], unit = 'ms') - est_translate
-ema_crossover(df, coin_name, short_period = 48, long_period = 84, smoothing = 2)
+ema_crossover(df, coin_name, short_period = 100, long_period = 200, smoothing = 2)

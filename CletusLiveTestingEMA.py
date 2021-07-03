@@ -37,7 +37,7 @@ def short_term_ema(df, short_period = 10, smoothing = 2):
          df['short_term_ema'][current] = (df['close'][current] * (smoothing / (1 + short_period))) + df['short_term_ema'][previous] * (1 - (smoothing / (1 + short_period)))
 
 
-def ema_crossover(df, coin_name, short_period = 10, long_period = 21, smoothing = 2):
+def ema_crossover(df, short_period = 10, long_period = 21, smoothing = 2):
    df['long_term_sma'] = df['close'].rolling(long_period).mean()
    df['short_term_sma'] = df['close'].rolling(short_period).mean()
 
@@ -53,7 +53,7 @@ def ema_crossover(df, coin_name, short_period = 10, long_period = 21, smoothing 
       if (df['short_term_ema'][current] == None) or (df['long_term_ema'][current] == None):
          df['in_uptrend'][current] = None
 
-      elif (df['short_term_ema'][current] + 0.001) > (df['long_term_ema'][current]):
+      elif (df['short_term_ema'][current]) > (df['long_term_ema'][current]):
          df['in_uptrend'][current] = True
 
       else:
@@ -70,9 +70,9 @@ def buy_sell(df, test_values, coin_name):
       test_values['buy_amt'] = (test_values['running_balance'] * 0.8) / test_values['buy_price']
       test_values['running_balance'] = test_values['running_balance'] - (test_values['buy_amt'] * test_values['buy_price'])
       print(f"I'm buyin' {test_values['buy_amt']} {coin_name} at {test_values['buy_price']} on {df['timestamp'][last_row_index]}")
-      with open('record.csv', 'a', newline='') as csvfile:
-         spamwriter = csv.writer(csvfile, delimiter='|')
-         spamwriter.writerow(['buy', test_values['buy_amt'], test_values['buy_price'], df['timestamp'][last_row_index]])
+      with open('LiveTestingRecord.csv', 'a', newline='') as csvfile:
+         writer = csv.writer(csvfile, delimiter='|')
+         writer.writerow(['buy', test_values['buy_amt'], test_values['buy_price'], df['timestamp'][last_row_index]])
 
    if df['in_uptrend'][previous_row_index] and not df['in_uptrend'][last_row_index] and test_values['in_position']:
       test_values['in_position'] = False
@@ -83,9 +83,9 @@ def buy_sell(df, test_values, coin_name):
       else:
          test_values['losses'] = test_values['losses'] + 1
       print(f"I'm sellin' {test_values['buy_amt']} {coin_name} at {test_values['sell_price']} on {df['timestamp'][last_row_index]}")
-      with open('record.csv', 'a', newline='') as csvfile:
-               spamwriter = csv.writer(csvfile, delimiter='|')
-               spamwriter.writerow(['sell', test_values['buy_amt'], test_values['sell_price'], df['timestamp'][last_row_index], [((test_values['sell_price'] / test_values['buy_price']) * 100) - 100]])
+      with open('LiveTestingRecord.csv', 'a', newline='') as csvfile:
+         writer = csv.writer(csvfile, delimiter='|')
+         writer.writerow(['sell', test_values['buy_amt'], test_values['sell_price'], df['timestamp'][last_row_index], [((test_values['sell_price'] / test_values['buy_price']) * 100) - 100]])
 
 test_values = {
    'original_balance': 10000,
@@ -100,10 +100,14 @@ test_values = {
 
 def job(test_values):
    coin_name = 'DOGE/USDT'
-   
+   timeframe = '1m'
+   short_period = 100
+   long_period = 200
+   smoothing = 2
+
    restart_timer = 5 # How many seconds to wait if an exception occurs before trying again
    try:
-      bars = exchange.fetch_ohlcv(coin_name, timeframe = '15m', limit = 250)
+      bars = exchange.fetch_ohlcv(coin_name, timeframe, limit = 250)
 
       # Timedelta object to translate to EST time zone from UTC
       est_translate = timedelta(hours=4)
@@ -111,8 +115,11 @@ def job(test_values):
       # Initializing the dataframe
       df = pd.DataFrame(bars[:-1], columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
       df['timestamp'] = pd.to_datetime(df['timestamp'], unit = 'ms') - est_translate
-      ema_crossover(df, coin_name, short_period = 48, long_period = 84, smoothing = 2)
+      ema_crossover(df, short_period, long_period, smoothing)
       buy_sell(df, test_values, coin_name)
+
+      # Outputting values to terminal
+      print(f"\nTrading {coin_name} on the {timeframe} interval with a short period of {short_period} and a long period of {long_period}\n")
 
       print(f"Starting Balance: ${test_values['original_balance']}")
       if test_values['in_position']:
@@ -128,7 +135,7 @@ def job(test_values):
       else:
          print(f'Win Rate: Not Enough Data')
 
-      print('---------------------------------------------------')
+      print('-------------------------------------------------------------')
 
    except Exception:
       print('An error occured when trying to fetch new candlesticks')
