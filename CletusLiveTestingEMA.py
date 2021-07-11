@@ -89,9 +89,17 @@ def buy_sell(df, test_values, coin_name):
       else:
          test_values['losses'] = test_values['losses'] + 1
       print(f"I'm sellin' {test_values['buy_amt']} {coin_name} at {test_values['sell_price']} on {df['timestamp'][last_row_index]}")
+
+      # Assign variables to use for the writer function
+      buy_amt = test_values['buy_amt']
+      buy_price = test_values['buy_price']
+      sell_price = test_values['sell_price']
+      timestamp = df['timestamp'][last_row_index]
+      percent_profit = ((test_values['sell_price'] / test_values['buy_price']) * 100) - 100
+
       with open('LiveTestingRecord.csv', 'a', newline='') as csvfile:
-         writer = csv.DictWriter(csvfile, delimiter='|')
-         writer.writerow(['sell', test_values['buy_amt'], test_values['sell_price'], df['timestamp'][last_row_index], [((test_values['sell_price'] / test_values['buy_price']) * 100) - 100]])
+         writer = csv.writer(csvfile, delimiter='|')
+         writer.writerow(['sell', buy_amt, sell_price, timestamp, percent_profit])
 
 test_values = {
    'original_balance': 10000,
