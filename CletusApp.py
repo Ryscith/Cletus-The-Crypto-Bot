@@ -12,7 +12,7 @@ root = tk.Tk()
 root.title('Cletus The Crypto Trader')
 
 # Setting the position of the window to the center of the screen
-w = 700
+w = 750
 h = 600
 
 screen_width = root.winfo_screenwidth()
@@ -36,10 +36,17 @@ testButtonsFrame = Frame(root, bg='#CCE4CA', bd=30)
 liveButtonFrame = Frame(root, bg='#00E4CA', bd=30)
 
 # Organize frames
-listFrame.grid(row=0, column=0, sticky='nsew')
-parametersFrame.grid(row=0, column=1, sticky='nsew')
-testButtonsFrame.grid(row=1, column=0, sticky='nsew')
-liveButtonFrame.grid(row=1, column=1, sticky='nsew')
+listFrame.grid(row=0, column=0, sticky=NSEW)
+parametersFrame.grid(row=0, column=1, sticky=NSEW)
+testButtonsFrame.grid(row=1, column=0, sticky=NSEW)
+liveButtonFrame.grid(row=1, column=1, sticky=NSEW)
+
+# Configure list grid
+listFrame.grid_rowconfigure(0, weight=1)
+listFrame.grid_rowconfigure(1, weight=0)
+
+listFrame.grid_columnconfigure(0, weight=1)
+listFrame.grid_columnconfigure(1, weight=1)
 
 # Configure parameter grid
 parametersFrame.grid_rowconfigure(0, weight=1)
@@ -52,12 +59,16 @@ parametersFrame.grid_rowconfigure(5, weight=0)
 parametersFrame.grid_columnconfigure(0, weight=1)
 parametersFrame.grid_columnconfigure(1, weight=1)
 
-# Creating the strategy picker and parameters
+# Creating the strategy picker
 strategyList = Listbox(listFrame)
-strategyList.pack(side = LEFT, fill = BOTH, expand=True)
+strategyList.grid(row=0, column=0, columnspan=2, sticky=NSEW, pady=10)
 for strategy in strategies:
     strategyList.insert(END, strategy)
 
+Button(listFrame, padx=20, pady=8, text='Select').grid(row=1, column=0)
+Button(listFrame, padx=20, pady=8, text='Rename').grid(row=1, column=1)
+
+# Creating the parameter area
 Label(parametersFrame, text='Long Term Period: ').grid(row=0, column=0)
 Entry(parametersFrame).grid(row=0, column=1)
 
