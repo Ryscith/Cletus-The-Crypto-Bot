@@ -1,15 +1,98 @@
+import config
+import json
 import tkinter as tk
 from tkinter import *
 
-strategies = [
-    'EMA Crossover',
-]
+strategies = {}
+with open('strategies.json') as file:
+    strategies = json.load(file)
+parameterEntries = {}
 
-def loadParameters(frame, strategy):
-    pass
+def loadParameters(strategy):
+    # Make and fill a row for each parameter + 1 row for save and load
+    for n, param in enumerate(strategy):
+        parametersFrame.grid_rowconfigure(n, weight=1)
+        rowCount = n
+    parametersFrame.grid_rowconfigure(rowCount+1, weight=0)
+
+    parametersFrame.grid_columnconfigure(0, weight=1)
+    parametersFrame.grid_columnconfigure(1, weight=1)
+
+    for n, param in enumerate(strategy):
+        Label(parametersFrame, text=param).grid(row=n, column=0)
+        if isinstance(strategy[param], int):
+            numEntry = Spinbox(parametersFrame, from_=0, to=2000, width=5)
+            numEntry.grid(row=n, column=1)
+            numEntry.delete(0, END)
+            numEntry.insert(0, strategy[param])
+            parameterEntries[param] = numEntry
+
+        else:
+            stringEntry = Entry(parametersFrame)
+            stringEntry.grid(row=n, column=1)
+            stringEntry.insert(0, strategy[param])
+            parameterEntries[param] = stringEntry
+
+def saveNewStrategy():
+    # Making a new window to receive name for the user's strategy they want to save
+    nameWin = Toplevel()
+    nameWin.title('Cletus The Crypto Connoisseur - Name Your Strategy')
+    nameWin.minsize(250, 60)
+    nameWin.maxsize(250, 60)
+
+    # Centers the window
+    w=250
+    h=60
+    screen_width = nameWin.winfo_screenwidth()
+    screen_height = nameWin.winfo_screenheight()
+    x = (screen_width/2) - (w/2)
+    y = (screen_height/2) - (h/2)
+    nameWin.geometry('%dx%d+%d+%d' % (w, h, x, y))
+
+    nameWin.grid_rowconfigure(0, weight=1)
+    nameWin.grid_rowconfigure(1, weight=1)
+
+    nameWin.grid_columnconfigure(0, weight=1)
+    nameWin.grid_columnconfigure(1, weight=1)
+    
+    # Create input
+    Label(nameWin, text='Enter Strategy Name:').grid(row=0, column=0)
+
+    strategyName = tk.StringVar(nameWin)
+
+    nameEntry = Entry(nameWin, textvariable=strategyName)
+    nameEntry.grid(row=0, column=1)
+
+    finishEntry = Button(nameWin, text='Done', command=lambda: saveParameters(nameWin, strategyName.get()))
+    finishEntry.grid(row=1, column=0, columnspan=2)
+
+# Saves the current filled parameters in the GUI to the strategies dict
+def saveParameters(saveNameWindow, strategyName):
+    saveNameWindow.withdraw()
+
+    newStrategy = {
+      'Timeframe': parameterEntries['Timeframe'].get(),
+      'Coin Names': parameterEntries['Coin Names'].get(),
+      'Percent of Portfolio': int(parameterEntries['Percent of Portfolio'].get()),
+      'Long Term Period': int(parameterEntries['Long Term Period'].get()),
+      'Short Term Period': int(parameterEntries['Short Term Period'].get()),
+      'Smoothing': int(parameterEntries['Smoothing'].get())
+    }
+
+    strategies[strategyName] = newStrategy
+    with open('strategies.json', 'w+') as file:
+        json.dump(strategies, file)
+
+    strategyList.insert(END, strategyName)
+
+# Returns the currently selected line in a Listbox
+def getListSelection(list):
+    currentSelected = list.curselection()
+    selectedStrategy = list.get(currentSelected)
+    return selectedStrategy
 
 root = tk.Tk()
-root.title('Cletus The Crypto Trader')
+root.title('Cletus The Crypto Connoisseur')
 
 # Setting the position of the window to the center of the screen
 w = 750
@@ -48,38 +131,19 @@ listFrame.grid_rowconfigure(1, weight=0)
 listFrame.grid_columnconfigure(0, weight=1)
 listFrame.grid_columnconfigure(1, weight=1)
 
-# Configure parameter grid
-parametersFrame.grid_rowconfigure(0, weight=1)
-parametersFrame.grid_rowconfigure(1, weight=1)
-parametersFrame.grid_rowconfigure(2, weight=1)
-parametersFrame.grid_rowconfigure(3, weight=1)
-parametersFrame.grid_rowconfigure(4, weight=1)
-parametersFrame.grid_rowconfigure(5, weight=0)
-
-parametersFrame.grid_columnconfigure(0, weight=1)
-parametersFrame.grid_columnconfigure(1, weight=1)
-
 # Creating the strategy picker
-strategyList = Listbox(listFrame)
+strategyList = Listbox(listFrame, selectmode=SINGLE)
 strategyList.grid(row=0, column=0, columnspan=2, sticky=NSEW, pady=10)
-for strategy in strategies:
-    strategyList.insert(END, strategy)
+for n, strategy in enumerate(strategies):
+    strategyList.insert(n, strategy)
 
-Button(listFrame, padx=20, pady=8, text='Select').grid(row=1, column=0)
-Button(listFrame, padx=20, pady=8, text='Rename').grid(row=1, column=1)
+Button(listFrame, padx=20, pady=8, text='Rename').grid(row=1, column=0, columnspan=2)
 
-# Creating the parameter area
-Label(parametersFrame, text='Long Term Period: ').grid(row=0, column=0)
-Entry(parametersFrame).grid(row=0, column=1)
-
-Label(parametersFrame, text='Short Term Period: ').grid(row=1, column=0)
-Entry(parametersFrame).grid(row=1, column=1)
-
-Label(parametersFrame, text='Smoothing Value: ').grid(row=2, column=0)
-Entry(parametersFrame).grid(row=2, column=1)
-
-Button(parametersFrame, padx=20, pady=8, text='Save').grid(row=5, column=0)
-Button(parametersFrame, padx=20, pady=8, text='Load').grid(row=5, column=1)
+# Configure parameter grid
+loadParameters(strategies['EMA Crossover Default'])
+column, row = parametersFrame.grid_size()
+Button(parametersFrame, padx=20, pady=8, text='Save', command=lambda: saveNewStrategy()).grid(row=row, column=0)
+Button(parametersFrame, padx=20, pady=8, text='Load', command=lambda: loadParameters(strategies[getListSelection(strategyList)])).grid(row=row, column=1)
 
 # Creating and placing testing/go live buttons
 backtestButton = tk.Button(testButtonsFrame, padx=50, pady=10, text='Backtest')
