@@ -70,14 +70,13 @@ def saveNewStrategy():
 def saveParameters(saveNameWindow, strategyName):
     saveNameWindow.withdraw()
 
-    newStrategy = {
-      'Timeframe': parameterEntries['Timeframe'].get(),
-      'Coin Names': parameterEntries['Coin Names'].get(),
-      'Percent of Portfolio': int(parameterEntries['Percent of Portfolio'].get()),
-      'Long Term Period': int(parameterEntries['Long Term Period'].get()),
-      'Short Term Period': int(parameterEntries['Short Term Period'].get()),
-      'Smoothing': int(parameterEntries['Smoothing'].get())
-    }
+    newStrategy = {}
+
+    for param in parameterEntries:
+        try:
+            newStrategy[param] = int(parameterEntries[param].get())
+        except:
+            newStrategy[param] = parameterEntries[param].get()
 
     strategies[strategyName] = newStrategy
     with open('strategies.json', 'w+') as file:
