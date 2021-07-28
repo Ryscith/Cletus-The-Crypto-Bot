@@ -155,14 +155,14 @@ test_values = {
 
 def job(test_values):
    coin_name = 'DOGE/USDT'
-   timeframe = '1m'
-   short_period = 100
-   long_period = 200
+   timeframe = '5m'
+   short_period = 60
+   long_period = 288
    smoothing = 2
 
    restart_timer = 5 # How many seconds to wait if an exception occurs before trying again
    try:
-      bars = exchange.fetch_ohlcv(coin_name, timeframe, limit = 250)
+      bars = exchange.fetch_ohlcv(coin_name, timeframe, limit = 1000)
 
       # Timedelta object to translate to EST time zone from UTC
       est_translate = timedelta(hours=4)

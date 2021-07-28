@@ -20,6 +20,23 @@ balance = exchange.fetch_balance()
 
 starting_balance = balance['USD']['free']
 
+def tr(df): # Calculates the true range and adds it to the dataframe
+   df['previous_close'] = df['close'].shift(1)
+   df['high-low'] = df['high'] - df['low']
+   df['high-pc'] = abs(df['high'] - df['previous_close'])
+   df['low-pc'] = abs(df['low'] - df['previous_close'])
+   tr = df[['high-low', 'high-pc', 'low-pc']].max(axis=1)
+
+   return tr
+
+def atr(df, period = 14): # Calculates the average true range and adds it the dataframe
+   df['tr'] = tr(df)
+
+   the_atr = df['tr'].rolling(period).mean()
+
+   df['atr'] = the_atr
+   return the_atr
+
 def long_term_ema(df, long_period = 21, smoothing = 2):
    for current in range(1, len(df.index)):
       previous = current - 1
@@ -41,6 +58,9 @@ def short_term_ema(df, short_period = 10, smoothing = 2):
          df['short_term_ema'][current] = (df['close'][current] * (smoothing / (1 + short_period))) + df['short_term_ema'][previous] * (1 - (smoothing / (1 + short_period)))
 
 def ema_crossover(df, short_period = 10, long_period = 21, smoothing = 2):
+   df['atr'] = atr(df, short_period)
+   df['trailing_stop'] = (df['close'] - (df['atr'] * 5))
+
    df['long_term_sma'] = df['close'].rolling(long_period).mean()
    df['short_term_sma'] = df['close'].rolling(short_period).mean()
 
@@ -86,6 +106,17 @@ def buy_sell(df, coin_name, coin_ticker):
          writer.writerow(['buy', buy_amt, buy_price, timestamp])
 
    if df['in_uptrend'][previous_row_index] and not df['in_uptrend'][last_row_index] and in_position:
+      timestamp = df['timestamp'][last_row_index]
+      sell_price = df['close'][last_row_index]
+      sell_amt = balance[coin_name]['free']
+      exchange.create_market_sell_order(coin_ticker, sell_amt)
+      print(f"I'm sellin' {sell_amt} {coin_name} at ${sell_price} on {timestamp}")
+      
+      with open('LiveTradingRecord.csv', 'a', newline='') as csvfile:
+         writer = csv.writer(csvfile, delimiter='|')
+         writer.writerow(['sell', sell_amt, sell_price, timestamp])
+   
+   elif df['close'][last_row_index] < df['trailing_stop'][last_row_index] and in_position:
       timestamp = df['timestamp'][last_row_index]
       sell_price = df['close'][last_row_index]
       sell_amt = balance[coin_name]['free']
