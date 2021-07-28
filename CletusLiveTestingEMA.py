@@ -16,6 +16,23 @@ exchange = ccxt.binanceus({
    "secret": config.BINANCE_SECRET_KEY
 })
 
+def tr(df): # Calculates the true range and adds it to the dataframe
+   df['previous_close'] = df['close'].shift(1)
+   df['high-low'] = df['high'] - df['low']
+   df['high-pc'] = abs(df['high'] - df['previous_close'])
+   df['low-pc'] = abs(df['low'] - df['previous_close'])
+   tr = df[['high-low', 'high-pc', 'low-pc']].max(axis=1)
+
+   return tr
+
+def atr(df, period = 14): # Calculates the average true range and adds it the dataframe
+   df['tr'] = tr(df)
+
+   the_atr = df['tr'].rolling(period).mean()
+
+   df['atr'] = the_atr
+   return the_atr
+
 def long_term_ema(df, long_period = 21, smoothing = 2):
    for current in range(1, len(df.index)):
       previous = current - 1
@@ -38,6 +55,9 @@ def short_term_ema(df, short_period = 10, smoothing = 2):
 
 
 def ema_crossover(df, short_period = 10, long_period = 21, smoothing = 2):
+   df['atr'] = atr(df, short_period)
+   df['trailing_stop'] = (df['close'] - (df['atr'] * 5))
+
    df['long_term_sma'] = df['close'].rolling(long_period).mean()
    df['short_term_sma'] = df['close'].rolling(short_period).mean()
 
@@ -80,7 +100,28 @@ def buy_sell(df, test_values, coin_name):
          writer = csv.writer(csvfile, delimiter='|')
          writer.writerow(['buy', buy_amt, buy_price, timestamp])
 
-   if df['in_uptrend'][previous_row_index] and not df['in_uptrend'][last_row_index] and test_values['in_position']:
+   elif df['in_uptrend'][previous_row_index] and not df['in_uptrend'][last_row_index] and test_values['in_position']:
+      test_values['in_position'] = False
+      test_values['sell_price'] = df['close'][last_row_index]
+      test_values['running_balance'] = test_values['running_balance'] + (test_values['buy_amt'] * test_values['sell_price'])
+      if test_values['buy_price'] < test_values['sell_price']:
+         test_values['wins'] = test_values['wins'] + 1
+      else:
+         test_values['losses'] = test_values['losses'] + 1
+      print(f"I'm sellin' {test_values['buy_amt']} {coin_name} at {test_values['sell_price']} on {df['timestamp'][last_row_index]}")
+
+      # Assign variables to use for the writer function
+      buy_amt = test_values['buy_amt']
+      buy_price = test_values['buy_price']
+      sell_price = test_values['sell_price']
+      timestamp = df['timestamp'][last_row_index]
+      percent_profit = ((test_values['sell_price'] / test_values['buy_price']) * 100) - 100
+
+      with open('LiveTestingRecord.csv', 'a', newline='') as csvfile:
+         writer = csv.writer(csvfile, delimiter='|')
+         writer.writerow(['sell', buy_amt, sell_price, timestamp, percent_profit])
+
+   elif df['close'][last_row_index] < df['trailing_stop'][last_row_index] and test_values['in_position']:
       test_values['in_position'] = False
       test_values['sell_price'] = df['close'][last_row_index]
       test_values['running_balance'] = test_values['running_balance'] + (test_values['buy_amt'] * test_values['sell_price'])

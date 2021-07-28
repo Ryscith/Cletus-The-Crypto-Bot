@@ -6,9 +6,9 @@ pd.set_option('max_rows', 5)
 import warnings
 warnings.filterwarnings('ignore')
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 import schedule
-from time import time, sleep
+from time import sleep
 import csv
 
 exchange = ccxt.binanceus({
