@@ -11,6 +11,7 @@ import schedule
 from time import sleep
 import csv
 
+# Setting up basic exchange info
 exchange = ccxt.binanceus({
    "apiKey": config.BINANCE_API_KEY,
    "secret": config.BINANCE_SECRET_KEY
@@ -19,6 +20,19 @@ exchange = ccxt.binanceus({
 balance = exchange.fetch_balance()
 
 starting_balance = balance['USD']['free']
+
+# Global string to hold the most recent trade
+most_recent_trade = " "
+
+# Default strategy for if there is no other strategy specified
+default_strategy = {
+   "Timeframe": "5m",
+   "Coin Names": "ETH/USD",
+   "Percent of Portfolio": 80,
+   "Long Term Period": 288,
+   "Short Term Period": 60,
+   "Smoothing": 2
+}
 
 def tr(df): # Calculates the true range and adds it to the dataframe
    df['previous_close'] = df['close'].shift(1)
@@ -37,7 +51,7 @@ def atr(df, period = 14): # Calculates the average true range and adds it the da
    df['atr'] = the_atr
    return the_atr
 
-def long_term_ema(df, long_period = 21, smoothing = 2):
+def long_term_ema(df, long_period = 21, smoothing = 2): # Calculates the long term exponential moving average and adds it to the dataframe
    for current in range(1, len(df.index)):
       previous = current - 1
       if current < long_period:
@@ -47,7 +61,7 @@ def long_term_ema(df, long_period = 21, smoothing = 2):
       else:
          df['long_term_ema'][current] = (df['close'][current] * (smoothing / (1 + long_period))) + df['long_term_ema'][previous] * (1 - (smoothing / (1 + long_period)))
 
-def short_term_ema(df, short_period = 10, smoothing = 2):
+def short_term_ema(df, short_period = 10, smoothing = 2): # Calculates the short term exponential moving average and adds it to the dataframe
    for current in range(1, len(df.index)):
       previous = current - 1
       if current < short_period:
@@ -57,7 +71,7 @@ def short_term_ema(df, short_period = 10, smoothing = 2):
       else:
          df['short_term_ema'][current] = (df['close'][current] * (smoothing / (1 + short_period))) + df['short_term_ema'][previous] * (1 - (smoothing / (1 + short_period)))
 
-def ema_crossover(df, short_period = 10, long_period = 21, smoothing = 2):
+def ema_crossover(df, short_period = 10, long_period = 21, smoothing = 2):# Adds all of the necessary trading info for the EMA crossover strategy to the dataframe
    df['atr'] = atr(df, short_period)
    df['trailing_stop'] = (df['close'] - (df['atr'] * 5))
 
@@ -73,6 +87,8 @@ def ema_crossover(df, short_period = 10, long_period = 21, smoothing = 2):
    df['in_uptrend'] = None
 
    for current in range(1, len(df.index)):
+      previous = current - 1
+
       if (df['short_term_ema'][current] == None) or (df['long_term_ema'][current] == None):
          df['in_uptrend'][current] = None
 
@@ -82,12 +98,13 @@ def ema_crossover(df, short_period = 10, long_period = 21, smoothing = 2):
       else:
          df['in_uptrend'][current] = False
 
-def buy_sell(df, coin_name, coin_ticker):
-   print(df.tail(3))
+      if (df['trailing_stop'][previous] > df['trailing_stop'][current]) and df['in_uptrend'][current]:
+         df['trailing_stop'][current] = df['trailing_stop'][previous]
+
+def buy_sell(df, coin_name, coin_ticker, most_recent_trade): # Executes trades
    last_row_index = len(df.index) - 1
    previous_row_index = last_row_index - 1
    balance = exchange.fetch_balance()
-   usd_balance = balance['USD']['free']
 
    if balance[coin_name]['free'] > 0:
       in_position = True
@@ -99,18 +116,26 @@ def buy_sell(df, coin_name, coin_ticker):
       buy_price = df['close'][last_row_index]
       buy_amt = (100.00) / buy_price
       exchange.create_market_buy_order(coin_ticker, buy_amt)
+      print("###########################################################################################################")
       print(f"I'm buyin' {buy_amt} {coin_name} at ${buy_price} on {timestamp}")
+      print("###########################################################################################################")
+
+      most_recent_trade = f"Bought {buy_amt} {coin_name} at ${buy_price} on {timestamp}"
 
       with open('LiveTradingRecord.csv', 'a', newline='') as csvfile:
          writer = csv.writer(csvfile, delimiter='|')
          writer.writerow(['buy', buy_amt, buy_price, timestamp])
 
-   if df['in_uptrend'][previous_row_index] and not df['in_uptrend'][last_row_index] and in_position:
+   elif df['in_uptrend'][previous_row_index] and not df['in_uptrend'][last_row_index] and in_position:
       timestamp = df['timestamp'][last_row_index]
       sell_price = df['close'][last_row_index]
       sell_amt = balance[coin_name]['free']
       exchange.create_market_sell_order(coin_ticker, sell_amt)
-      print(f"I'm sellin' {sell_amt} {coin_name} at ${sell_price} on {timestamp}")
+      print("###########################################################################################################")
+      print(f"I'm sellin' {sell_amt} {coin_name} at ${sell_price} on {timestamp} because there was an EMA cross")
+      print("###########################################################################################################")
+
+      most_recent_trade = f"Sold {sell_amt} {coin_name} at ${sell_price} on {timestamp} because of an EMA cross"
       
       with open('LiveTradingRecord.csv', 'a', newline='') as csvfile:
          writer = csv.writer(csvfile, delimiter='|')
@@ -121,23 +146,28 @@ def buy_sell(df, coin_name, coin_ticker):
       sell_price = df['close'][last_row_index]
       sell_amt = balance[coin_name]['free']
       exchange.create_market_sell_order(coin_ticker, sell_amt)
-      print(f"I'm sellin' {sell_amt} {coin_name} at ${sell_price} on {timestamp}")
+      print("###########################################################################################################")
+      print(f"I'm sellin' {sell_amt} {coin_name} at ${sell_price} on {timestamp} because the price went below the trailing stop")
+      print("###########################################################################################################")
+
+      most_recent_trade = f"Sold {sell_amt} {coin_name} at ${sell_price} on {timestamp} because of the trailing stop"
       
       with open('LiveTradingRecord.csv', 'a', newline='') as csvfile:
          writer = csv.writer(csvfile, delimiter='|')
          writer.writerow(['sell', sell_amt, sell_price, timestamp])
 
-def job():
-   coin_name = 'DOGE'
-   coin_ticker = coin_name + '/USD'
-   timeframe = '5m'
-   short_period = 60
-   long_period = 288
-   smoothing = 2
+   print(df.tail(3))
+
+def job(strategy, most_recent_trade):
+   coin_name = strategy['Coin Names']
+   timeframe = strategy['Timeframe']
+   short_period = strategy['Short Term Period']
+   long_period = strategy['Long Term Period']
+   smoothing = strategy['Smoothing']
 
    restart_timer = 5 # How many seconds to wait if an exception occurs before trying again
    try:
-      bars = exchange.fetch_ohlcv(coin_ticker, timeframe, limit = 750)
+      bars = exchange.fetch_ohlcv(coin_name, timeframe, limit = 750)
 
       # Timedelta object to translate to EST time zone from UTC
       est_translate = timedelta(hours=4)
@@ -145,8 +175,8 @@ def job():
       # Initializing the dataframe
       df = pd.DataFrame(bars[:-1], columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
       df['timestamp'] = pd.to_datetime(df['timestamp'], unit = 'ms') - est_translate
-      ema_crossover(df, short_period, long_period, smoothing)
-      buy_sell(df, coin_name, coin_ticker)
+      ema_crossover(df, coin_name, short_period, long_period, smoothing)
+      buy_sell(df, coin_name, most_recent_trade)
       balance = exchange.fetch_balance()
       usd_balance = balance['USD']['free']
 
@@ -161,11 +191,14 @@ def job():
       print('An error occured when trying to fetch new candlesticks')
       print(f'Retrying in {restart_timer} seconds')
       sleep(restart_timer)
-      job()
+      job(strategy, most_recent_trade)
 
+def runBot(strategy):
+   schedule.every(1).minute.do(job, strategy, most_recent_trade)
 
-schedule.every(1).minute.do(job)
+   while True:
+      schedule.run_pending()
+      sleep(10)
 
-while True:
-   schedule.run_pending()
-   sleep(10)
+if __name__ == '__main__':
+   runBot(default_strategy)

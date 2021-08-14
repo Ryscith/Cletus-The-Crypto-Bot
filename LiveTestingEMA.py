@@ -8,13 +8,27 @@ warnings.filterwarnings('ignore')
 
 from datetime import datetime, timedelta
 import schedule
-from time import time, sleep
+from time import sleep
 import csv
 
+# Exchange information pulled from config file
 exchange = ccxt.binanceus({
    "apiKey": config.BINANCE_API_KEY,
    "secret": config.BINANCE_SECRET_KEY
 })
+
+# Global string to hold the most recent trade
+most_recent_trade = " "
+
+# Default strategy for if there is no other strategy specified
+default_strategy = {
+   "Timeframe": "5m",
+   "Coin Names": "ETH/USD",
+   "Percent of Portfolio": 80,
+   "Long Term Period": 288,
+   "Short Term Period": 60,
+   "Smoothing": 2
+}
 
 def tr(df): # Calculates the true range and adds it to the dataframe
    df['previous_close'] = df['close'].shift(1)
@@ -33,7 +47,7 @@ def atr(df, period = 14): # Calculates the average true range and adds it the da
    df['atr'] = the_atr
    return the_atr
 
-def long_term_ema(df, long_period = 21, smoothing = 2):
+def long_term_ema(df, long_period = 21, smoothing = 2): # Calculates the long term exponential moving average and adds it to the dataframe
    for current in range(1, len(df.index)):
       previous = current - 1
       if current < long_period:
@@ -43,7 +57,7 @@ def long_term_ema(df, long_period = 21, smoothing = 2):
       else:
          df['long_term_ema'][current] = (df['close'][current] * (smoothing / (1 + long_period))) + df['long_term_ema'][previous] * (1 - (smoothing / (1 + long_period)))
 
-def short_term_ema(df, short_period = 10, smoothing = 2):
+def short_term_ema(df, short_period = 10, smoothing = 2): # Calculates the short term exponential moving average and adds it to the dataframe
    for current in range(1, len(df.index)):
       previous = current - 1
       if current < short_period:
@@ -53,8 +67,7 @@ def short_term_ema(df, short_period = 10, smoothing = 2):
       else:
          df['short_term_ema'][current] = (df['close'][current] * (smoothing / (1 + short_period))) + df['short_term_ema'][previous] * (1 - (smoothing / (1 + short_period)))
 
-
-def ema_crossover(df, short_period = 10, long_period = 21, smoothing = 2):
+def ema_crossover(df, short_period = 10, long_period = 21, smoothing = 2): # Adds all of the necessary trading info for the EMA crossover strategy to the dataframe
    df['atr'] = atr(df, short_period)
    df['trailing_stop'] = (df['close'] - (df['atr'] * 5))
 
@@ -70,6 +83,9 @@ def ema_crossover(df, short_period = 10, long_period = 21, smoothing = 2):
    df['in_uptrend'] = None
 
    for current in range(1, len(df.index)):
+      previous = current - 1
+
+      # Adds uptrend indicators to the dataframe
       if (df['short_term_ema'][current] == None) or (df['long_term_ema'][current] == None):
          df['in_uptrend'][current] = None
 
@@ -79,8 +95,11 @@ def ema_crossover(df, short_period = 10, long_period = 21, smoothing = 2):
       else:
          df['in_uptrend'][current] = False
 
-def buy_sell(df, test_values, coin_name):
-   print(df.tail(3))
+      # Keeps the trailing stop at it's high as long as the coin is in an uptrend
+      if (df['trailing_stop'][previous] > df['trailing_stop'][current]) and df['in_uptrend'][current]:
+         df['trailing_stop'][current] = df['trailing_stop'][previous]
+
+def buy_sell(df, test_values, coin_name, most_recent_trade): # Executes trades
    last_row_index = len(df.index) - 1
    previous_row_index = last_row_index - 1
 
@@ -89,7 +108,12 @@ def buy_sell(df, test_values, coin_name):
       test_values['buy_price'] = df['close'][last_row_index]
       test_values['buy_amt'] = (test_values['running_balance'] * 0.8) / test_values['buy_price']
       test_values['running_balance'] = test_values['running_balance'] - (test_values['buy_amt'] * test_values['buy_price'])
+
+      print("###########################################################################################################")
       print(f"I'm buyin' {test_values['buy_amt']} {coin_name} at {test_values['buy_price']} on {df['timestamp'][last_row_index]}")
+      print("###########################################################################################################")
+
+      most_recent_trade = f"Bought {test_values['buy_amt']} {coin_name} at {test_values['buy_price']} on {df['timestamp'][last_row_index]}"
 
       # Assign variables to use for the writer function
       buy_amt = test_values['buy_amt']
@@ -108,7 +132,12 @@ def buy_sell(df, test_values, coin_name):
          test_values['wins'] = test_values['wins'] + 1
       else:
          test_values['losses'] = test_values['losses'] + 1
-      print(f"I'm sellin' {test_values['buy_amt']} {coin_name} at {test_values['sell_price']} on {df['timestamp'][last_row_index]}")
+      
+      print("###########################################################################################################")
+      print(f"I'm sellin' {test_values['buy_amt']} {coin_name} at {test_values['sell_price']} on {df['timestamp'][last_row_index]} because there was an EMA cross")
+      print("###########################################################################################################")
+
+      most_recent_trade = f"Sold {test_values['buy_amt']} {coin_name} at {test_values['sell_price']} on {df['timestamp'][last_row_index]} because of an EMA cross"
 
       # Assign variables to use for the writer function
       buy_amt = test_values['buy_amt']
@@ -121,7 +150,7 @@ def buy_sell(df, test_values, coin_name):
          writer = csv.writer(csvfile, delimiter='|')
          writer.writerow(['sell', buy_amt, sell_price, timestamp, percent_profit])
 
-   elif df['close'][last_row_index] < df['trailing_stop'][last_row_index] and test_values['in_position']:
+   elif (df['close'][last_row_index] < df['trailing_stop'][last_row_index]) and test_values['in_position']:
       test_values['in_position'] = False
       test_values['sell_price'] = df['close'][last_row_index]
       test_values['running_balance'] = test_values['running_balance'] + (test_values['buy_amt'] * test_values['sell_price'])
@@ -129,7 +158,12 @@ def buy_sell(df, test_values, coin_name):
          test_values['wins'] = test_values['wins'] + 1
       else:
          test_values['losses'] = test_values['losses'] + 1
-      print(f"I'm sellin' {test_values['buy_amt']} {coin_name} at {test_values['sell_price']} on {df['timestamp'][last_row_index]}")
+      
+      print("###########################################################################################################")
+      print(f"I'm sellin' {test_values['buy_amt']} {coin_name} at {test_values['sell_price']} on {df['timestamp'][last_row_index]} because the price went below the trailing stop")
+      print("###########################################################################################################")
+
+      most_recent_trade = f"Sold {test_values['buy_amt']} {coin_name} at {test_values['sell_price']} on {df['timestamp'][last_row_index]} because of the trailing stop"
 
       # Assign variables to use for the writer function
       buy_amt = test_values['buy_amt']
@@ -141,6 +175,8 @@ def buy_sell(df, test_values, coin_name):
       with open('LiveTestingRecord.csv', 'a', newline='') as csvfile:
          writer = csv.writer(csvfile, delimiter='|')
          writer.writerow(['sell', buy_amt, sell_price, timestamp, percent_profit])
+   
+   print(df.tail(3))
 
 test_values = {
    'original_balance': 10000,
@@ -153,12 +189,12 @@ test_values = {
    'losses': 0,
 }
 
-def job(test_values):
-   coin_name = 'DOGE/USDT'
-   timeframe = '5m'
-   short_period = 60
-   long_period = 288
-   smoothing = 2
+def job(test_values, strategy, most_recent_trade):
+   coin_name = strategy['Coin Names']
+   timeframe = strategy['Timeframe']
+   short_period = strategy['Short Term Period']
+   long_period = strategy['Long Term Period']
+   smoothing = strategy['Smoothing']
 
    restart_timer = 5 # How many seconds to wait if an exception occurs before trying again
    try:
@@ -171,10 +207,12 @@ def job(test_values):
       df = pd.DataFrame(bars[:-1], columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
       df['timestamp'] = pd.to_datetime(df['timestamp'], unit = 'ms') - est_translate
       ema_crossover(df, short_period, long_period, smoothing)
-      buy_sell(df, test_values, coin_name)
+      buy_sell(df, test_values, coin_name, most_recent_trade)
 
       # Outputting values to terminal
       print(f"\nTrading {coin_name} on the {timeframe} interval with a short period of {short_period} and a long period of {long_period}\n")
+
+      print(f"Most Recent Activity: {most_recent_trade}")
 
       print(f"Starting Balance: ${test_values['original_balance']}")
       if test_values['in_position']:
@@ -190,17 +228,20 @@ def job(test_values):
       else:
          print(f'Win Rate: Not Enough Data')
 
-      print('-------------------------------------------------------------')
+      print('------------------------------------------------------------------------------------')
 
    except Exception:
       print('An error occured when trying to fetch new candlesticks')
       print(f'Retrying in {restart_timer} seconds')
       sleep(restart_timer)
-      job(test_values)
+      job(test_values, strategy, most_recent_trade)
 
+def runBot(strategy):
+   schedule.every(1).minute.do(job, test_values, strategy, most_recent_trade)
 
-schedule.every(1).minute.do(job, test_values)
+   while True:
+      schedule.run_pending()
+      sleep(10)
 
-while True:
-   schedule.run_pending()
-   sleep(10)
+if __name__ == '__main__':
+   runBot(default_strategy)

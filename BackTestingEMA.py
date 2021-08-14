@@ -63,7 +63,7 @@ def ema_crossover(df, coin_name, short_period = 10, long_period = 21, smoothing 
    test_losses = 0
 
    df['atr'] = atr(df, short_period)
-   df['trailing_stop'] = (df['close'] - (df['atr'] * 5))
+   df['trailing_stop'] = ((df['close']) - (df['atr'] * 5))
 
    df['long_term_sma'] = df['close'].rolling(long_period).mean()
    df['short_term_sma'] = df['close'].rolling(short_period).mean()
@@ -151,7 +151,7 @@ def buy_sell(df):
    if df['in_uptrend'][previous_row_index] and not df['in_uptrend'][last_row_index]:
       print("I'm sellin'")
 
-coin_name = 'DOGE/USD'
+coin_name = 'ETH/USD'
 bars = exchange.fetch_ohlcv(coin_name, timeframe = '5m', limit = 1000)
 
 # Timedelta object to translate to EST time zone from UTC
