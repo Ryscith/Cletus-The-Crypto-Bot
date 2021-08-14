@@ -2,6 +2,8 @@ import config
 import json
 import tkinter as tk
 from tkinter import *
+import threading
+import LiveTestingEMA
 
 strategies = {}
 with open('strategies.json') as file:
@@ -84,11 +86,31 @@ def saveParameters(saveNameWindow, strategyName):
 
     strategyList.insert(END, strategyName)
 
+def deleteStrategy(strategyName):
+    if strategyName == 'EMA Crossover Default':
+        return
+    del strategies[strategyName]
+    strategyList.delete(strategyList.curselection())
+
+    with open('strategies.json', 'w+') as file:
+        json.dump(strategies, file)
+
+def renameStrategy(strategyName):
+    if strategyName == 'EMA Crossover Default':
+        return
+    saveNewStrategy()
+    deleteStrategy(strategyName)
+
 # Returns the currently selected line in a Listbox
 def getListSelection(list):
     currentSelected = list.curselection()
     selectedStrategy = list.get(currentSelected)
     return selectedStrategy
+
+def liveTest(strategy):
+    print('Live Testing')
+    liveTestThread = threading.Thread(target=lambda: LiveTestingEMA.runBot(strategy))
+    liveTestThread.start()
 
 root = tk.Tk()
 root.title('Cletus The Crypto Connoisseur')
@@ -129,14 +151,19 @@ listFrame.grid_rowconfigure(1, weight=0)
 
 listFrame.grid_columnconfigure(0, weight=1)
 listFrame.grid_columnconfigure(1, weight=1)
+listFrame.grid_columnconfigure(2, weight=0)
 
 # Creating the strategy picker
-strategyList = Listbox(listFrame, selectmode=SINGLE)
+strategyListScrollbar = Scrollbar(listFrame)
+strategyListScrollbar.grid(row=0, column=2, sticky=NSEW, pady=10)
+
+strategyList = Listbox(listFrame, selectmode=SINGLE, yscrollcommand=strategyListScrollbar.set)
 strategyList.grid(row=0, column=0, columnspan=2, sticky=NSEW, pady=10)
 for n, strategy in enumerate(strategies):
     strategyList.insert(n, strategy)
 
-Button(listFrame, padx=20, pady=8, text='Rename').grid(row=1, column=0, columnspan=2)
+Button(listFrame, padx=20, pady=8, text='Rename', command=lambda: renameStrategy(getListSelection(strategyList))).grid(row=1, column=0)
+Button(listFrame, padx=20, pady=8, text='Delete', command=lambda: deleteStrategy(getListSelection(strategyList))).grid(row=1, column=1)
 
 # Configure parameter grid
 loadParameters(strategies['EMA Crossover Default'])
@@ -148,7 +175,7 @@ Button(parametersFrame, padx=20, pady=8, text='Load', command=lambda: loadParame
 backtestButton = tk.Button(testButtonsFrame, padx=50, pady=10, text='Backtest')
 backtestButton.pack(side='left')
 
-livetestButton = tk.Button(testButtonsFrame, padx=50, pady=10, text='Live Test')
+livetestButton = tk.Button(testButtonsFrame, padx=50, pady=10, text='Live Test', command=lambda: liveTest(strategies[getListSelection(strategyList)]))
 livetestButton.pack(side='right')
 
 liveButton = tk.Button(liveButtonFrame, padx=30, pady=10, text='GO LIVE')
