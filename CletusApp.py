@@ -1,3 +1,7 @@
+#  Version 0.1 - Model T
+#  Author: Reilly Schultz
+#  Date: August 16th, 2021
+
 import config
 import json
 import tkinter as tk

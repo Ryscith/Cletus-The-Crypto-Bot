@@ -1,3 +1,7 @@
+#  Version 0.1 - Model T
+#  Author: Reilly Schultz
+#  Date: August 16th, 2021
+
 import config
 import ccxt
 import pandas as pd
@@ -23,7 +27,7 @@ most_recent_trade = " "
 # Default strategy for if there is no other strategy specified
 default_strategy = {
    "Timeframe": "5m",
-   "Coin Names": "ETH/USD",
+   "Coin Names": "DOGE/USD",
    "Percent of Portfolio": 80,
    "Long Term Period": 288,
    "Short Term Period": 60,
