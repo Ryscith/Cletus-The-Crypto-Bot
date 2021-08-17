@@ -32,7 +32,7 @@ most_recent_trade = " "
 default_strategy = {
    "Timeframe": "5m",
    "Coin Names": "ETH/USD",
-   "Percent of Portfolio": 80,
+   "Percent of Portfolio": 0.5,
    "Long Term Period": 288,
    "Short Term Period": 60,
    "Smoothing": 2
@@ -105,12 +105,13 @@ def ema_crossover(df, short_period = 10, long_period = 21, smoothing = 2):# Adds
       if (df['trailing_stop'][previous] > df['trailing_stop'][current]) and df['in_uptrend'][current]:
          df['trailing_stop'][current] = df['trailing_stop'][previous]
 
-def buy_sell(df, coin_name, coin_ticker, most_recent_trade): # Executes trades
+def buy_sell(df, coin_name, coin_ticker, most_recent_trade, portfolio_percent): # Executes trades
    last_row_index = len(df.index) - 1
    previous_row_index = last_row_index - 1
    balance = exchange.fetch_balance()
+   tradable_funds = (balance['USD']['free']) * portfolio_percent
 
-   if balance[coin_name]['free'] > 0:
+   if balance[coin_name]['free'] > 0.0:
       in_position = True
    else:
       in_position = False
@@ -118,7 +119,7 @@ def buy_sell(df, coin_name, coin_ticker, most_recent_trade): # Executes trades
    if not df['in_uptrend'][previous_row_index] and df['in_uptrend'][last_row_index] and not in_position:
       timestamp = df['timestamp'][last_row_index]
       buy_price = df['close'][last_row_index]
-      buy_amt = (100.00) / buy_price
+      buy_amt = tradable_funds / buy_price
       exchange.create_market_buy_order(coin_ticker, buy_amt)
       print("###########################################################################################################")
       print(f"I'm buyin' {buy_amt} {coin_name} at ${buy_price} on {timestamp}")
@@ -163,15 +164,17 @@ def buy_sell(df, coin_name, coin_ticker, most_recent_trade): # Executes trades
    print(df.tail(3))
 
 def job(strategy, most_recent_trade):
-   coin_name = strategy['Coin Names']
+   coin_ticker = strategy['Coin Names']
+   coin_name = strategy['Coin Names'].replace("/USD", "")
    timeframe = strategy['Timeframe']
    short_period = strategy['Short Term Period']
    long_period = strategy['Long Term Period']
    smoothing = strategy['Smoothing']
+   portfolio_percent = strategy['Percent of Portfolio']
 
    restart_timer = 5 # How many seconds to wait if an exception occurs before trying again
    try:
-      bars = exchange.fetch_ohlcv(coin_name, timeframe, limit = 750)
+      bars = exchange.fetch_ohlcv(coin_ticker, timeframe, limit = 750)
 
       # Timedelta object to translate to EST time zone from UTC
       est_translate = timedelta(hours=4)
@@ -179,13 +182,13 @@ def job(strategy, most_recent_trade):
       # Initializing the dataframe
       df = pd.DataFrame(bars[:-1], columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
       df['timestamp'] = pd.to_datetime(df['timestamp'], unit = 'ms') - est_translate
-      ema_crossover(df, coin_name, short_period, long_period, smoothing)
-      buy_sell(df, coin_name, most_recent_trade)
+      ema_crossover(df, short_period, long_period, smoothing)
+      buy_sell(df, coin_name, coin_ticker, most_recent_trade, portfolio_percent)
       balance = exchange.fetch_balance()
       usd_balance = balance['USD']['free']
 
       # Outputting values to terminal
-      print(f"\nTrading {coin_name} on the {timeframe} interval with a short period of {short_period} and a long period of {long_period}\n")
+      print(f"\nTrading {coin_ticker} on the {timeframe} interval with a short period of {short_period} and a long period of {long_period}\n")
 
       print(f"USD Balance: ${usd_balance}")
       print(f"{coin_name} Balance: {balance[coin_name]['free']}")
@@ -197,7 +200,7 @@ def job(strategy, most_recent_trade):
       sleep(restart_timer)
       job(strategy, most_recent_trade)
 
-def runBot(strategy):
+def runBot(strategy, most_recent_trade=most_recent_trade):
    schedule.every(1).minute.do(job, strategy, most_recent_trade)
 
    while True:

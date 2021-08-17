@@ -27,8 +27,8 @@ most_recent_trade = " "
 # Default strategy for if there is no other strategy specified
 default_strategy = {
    "Timeframe": "5m",
-   "Coin Names": "DOGE/USD",
-   "Percent of Portfolio": 80,
+   "Coin Names": "ETH/USD",
+   "Percent of Portfolio": 0.8,
    "Long Term Period": 288,
    "Short Term Period": 60,
    "Smoothing": 2
@@ -103,14 +103,15 @@ def ema_crossover(df, short_period = 10, long_period = 21, smoothing = 2): # Add
       if (df['trailing_stop'][previous] > df['trailing_stop'][current]) and df['in_uptrend'][current]:
          df['trailing_stop'][current] = df['trailing_stop'][previous]
 
-def buy_sell(df, test_values, coin_name, most_recent_trade): # Executes trades
+def buy_sell(df, test_values, coin_name, most_recent_trade, portfolio_percent): # Executes trades
    last_row_index = len(df.index) - 1
    previous_row_index = last_row_index - 1
+   tradable_funds = (test_values['running_balance']) * portfolio_percent
 
    if not df['in_uptrend'][previous_row_index] and df['in_uptrend'][last_row_index] and not test_values['in_position']:
       test_values['in_position'] = True
       test_values['buy_price'] = df['close'][last_row_index]
-      test_values['buy_amt'] = (test_values['running_balance'] * 0.8) / test_values['buy_price']
+      test_values['buy_amt'] = tradable_funds / test_values['buy_price']
       test_values['running_balance'] = test_values['running_balance'] - (test_values['buy_amt'] * test_values['buy_price'])
 
       print("###########################################################################################################")
@@ -211,7 +212,7 @@ def job(test_values, strategy, most_recent_trade):
       df = pd.DataFrame(bars[:-1], columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
       df['timestamp'] = pd.to_datetime(df['timestamp'], unit = 'ms') - est_translate
       ema_crossover(df, short_period, long_period, smoothing)
-      buy_sell(df, test_values, coin_name, most_recent_trade)
+      buy_sell(df, test_values, coin_name, most_recent_trade, strategy['Percent of Portfolio'])
 
       # Outputting values to terminal
       print(f"\nTrading {coin_name} on the {timeframe} interval with a short period of {short_period} and a long period of {long_period}\n")
@@ -240,7 +241,7 @@ def job(test_values, strategy, most_recent_trade):
       sleep(restart_timer)
       job(test_values, strategy, most_recent_trade)
 
-def runBot(strategy):
+def runBot(strategy, most_recent_trade=most_recent_trade):
    schedule.every(1).minute.do(job, test_values, strategy, most_recent_trade)
 
    while True:
