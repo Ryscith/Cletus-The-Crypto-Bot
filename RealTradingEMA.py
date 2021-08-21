@@ -1,4 +1,4 @@
-#  Version 0.1 - Model T
+#  Version 0.11 - Model T
 #  Author: Reilly Schultz
 #  Date: August 16th, 2021
 
@@ -77,7 +77,7 @@ def short_term_ema(df, short_period = 10, smoothing = 2): # Calculates the short
 
 def ema_crossover(df, short_period = 10, long_period = 21, smoothing = 2):# Adds all of the necessary trading info for the EMA crossover strategy to the dataframe
    df['atr'] = atr(df, short_period)
-   df['trailing_stop'] = (df['close'] - (df['atr'] * 5))
+   df['trailing_stop'] = (df['close'] - (df['atr'] * 6))
 
    df['long_term_sma'] = df['close'].rolling(long_period).mean()
    df['short_term_sma'] = df['close'].rolling(short_period).mean()
@@ -111,10 +111,8 @@ def buy_sell(df, coin_name, coin_ticker, most_recent_trade, portfolio_percent): 
    balance = exchange.fetch_balance()
    tradable_funds = (balance['USD']['free']) * portfolio_percent
 
-   if balance[coin_name]['free'] > 0.0:
-      in_position = True
-   else:
-      in_position = False
+   # You are in a position if you have a balance of the coin worth more than 1 USD
+   in_position = (balance[coin_name]['free'] * df['close'][last_row_index]) > 1
 
    if not df['in_uptrend'][previous_row_index] and df['in_uptrend'][last_row_index] and not in_position:
       timestamp = df['timestamp'][last_row_index]
